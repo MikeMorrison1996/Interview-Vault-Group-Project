@@ -1,72 +1,94 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { getApplications } from '../storage/applicationStorage';
-
+import { Application } from '../types/Application';
+import ApplicationCard from '../components/ApplicationCard';
 import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 
 export default function ApplicationsScreen({ navigation }: any) {
-    const [applications, setApplications] = useState<any[]>([]);
+    const [applications, setApplications] = useState<Application[]>([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        loadApplications();
-    }, []);
+    // useFocusEffect reloads every time this screen comes into focus
+    // — so returning from Add/Edit or Details always shows fresh data
+    useFocusEffect(
+        useCallback(() => {
+            loadApplications();
+        }, [])
+    );
 
     const loadApplications = async () => {
+        setLoading(true);
         try {
             const data = await getApplications();
             setApplications(data || []);
         } catch (error) {
-            console.log('Error loading applications:', error);
+            console.error('Error loading applications:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    // ✅ Loading state
-    if (loading) {
-        return <LoadingState message="Loading applications..." />;
-    }
-
-    // ✅ Empty state
+    if (loading) return <LoadingState message="Loading applications..." />;
     if (applications.length === 0) {
-        return <EmptyState message="No applications yet" />;
+        return (
+            <View style={{ flex: 1 }}>
+                <EmptyState message="No applications yet. Tap + to add one." />
+                <TouchableOpacity
+                    style={styles.fab}
+                    onPress={() => navigation.navigate('AddEditApplication')}
+                >
+                    <Text style={styles.fabText}>+</Text>
+                </TouchableOpacity>
+            </View>
+        );
     }
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Applications</Text>
-
             <FlatList
                 data={applications}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
-                    <TouchableOpacity
-                        style={styles.card}
+                    <ApplicationCard
+                        application={item}
                         onPress={() =>
                             navigation.navigate('ApplicationDetails', { application: item })
                         }
-                    >
-                        <Text style={styles.company}>{item.company}</Text>
-                        <Text>{item.title}</Text>
-                        <Text style={styles.status}>{item.status}</Text>
-                    </TouchableOpacity>
+                    />
                 )}
+                contentContainerStyle={styles.list}
             />
+            <TouchableOpacity
+                style={styles.fab}
+                onPress={() => navigation.navigate('AddEditApplication')}
+            >
+                <Text style={styles.fabText}>+</Text>
+            </TouchableOpacity>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 20 },
-    title: { fontSize: 24, fontWeight: 'bold', marginBottom: 15 },
-    card: {
-        padding: 15,
-        backgroundColor: '#eee',
-        borderRadius: 10,
-        marginBottom: 10,
+    container: { flex: 1, backgroundColor: '#f7f8fa' },
+    list: { padding: 16, paddingBottom: 100 },
+    fab: {
+        position: 'absolute',
+        bottom: 28,
+        right: 24,
+        backgroundColor: '#1a1a2e',
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 5,
     },
-    company: { fontWeight: 'bold', fontSize: 16 },
-    status: { marginTop: 5, color: 'blue' },
+    fabText: { color: '#fff', fontSize: 28, fontWeight: '300', lineHeight: 32 },
 });
